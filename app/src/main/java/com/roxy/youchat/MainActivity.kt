@@ -48,6 +48,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import androidx.photopicker.compose.EmbeddedPhotoPicker
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.photopicker.compose.ExperimentalPhotoPickerComposeApi
 import androidx.photopicker.compose.rememberEmbeddedPhotoPickerState
 import coil.compose.AsyncImage
@@ -437,7 +438,25 @@ fun ChatScreen() {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(36.dp),
+                                .height(36.dp)
+                                .pointerInput(Unit) {
+                                    detectTapGestures {
+                                        if (pickerUIState == PickerUIState.COLLAPSED) {
+                                            pickerUIState = PickerUIState.EXPANDED
+                                        }
+                                    }
+                                }
+                                .pointerInput(Unit) {
+                                    detectDragGestures { change, dragAmount ->
+                                        if (dragAmount.y > 10f && pickerUIState == PickerUIState.EXPANDED) {
+                                            pickerUIState = PickerUIState.COLLAPSED
+                                            change.consume()
+                                        } else if (dragAmount.y < -10f && pickerUIState == PickerUIState.COLLAPSED) {
+                                            pickerUIState = PickerUIState.EXPANDED
+                                            change.consume()
+                                        }
+                                    }
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Box(
