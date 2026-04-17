@@ -322,7 +322,7 @@ fun ChatScreen() {
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
-                .background(if (selectedUris.isNotEmpty()) Color.Black else Color(0xFFECE5DD))
+                .background(if (selectedUris.isNotEmpty()) Color.Black else MaterialTheme.colorScheme.background)
         ) {
             val maxHeight = maxHeight
             val collapsedHeight = maxHeight / 3
@@ -674,7 +674,17 @@ fun MessageList(messages: List<Message>, modifier: Modifier = Modifier) {
 @Composable
 fun MessageBubble(message: Message) {
     val alignment = if (message.isFromMe) Alignment.CenterEnd else Alignment.CenterStart
-    val backgroundColor = if (message.isFromMe) Color(0xFFDCF8C6) else Color.White
+    val backgroundColor = if (message.isFromMe) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (message.isFromMe) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    
     val shape = if (message.isFromMe) {
         RoundedCornerShape(12.dp, 12.dp, 0.dp, 12.dp)
     } else {
@@ -689,6 +699,7 @@ fun MessageBubble(message: Message) {
     ) {
         Surface(
             color = backgroundColor,
+            contentColor = contentColor,
             shape = shape,
             shadowElevation = 2.dp
         ) {
@@ -716,7 +727,8 @@ fun MessageBubble(message: Message) {
                     Text(
                         text = message.text,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontSize = 16.sp
+                        fontSize = 16.sp,
+                        color = contentColor
                     )
                 }
             }
