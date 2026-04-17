@@ -11,6 +11,7 @@ import android.widget.photopicker.EmbeddedPhotoPickerFeatureInfo
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
@@ -96,6 +97,8 @@ enum class PickerUIState {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Take manual control of system windows to handle keyboard (IME) insets precisely.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         enableEdgeToEdge()
         setContent {
             HelloWorldTheme {
@@ -297,8 +300,13 @@ fun ChatScreen() {
     // ------------------------------------------------------------------------------------
 
     Scaffold(
+        // Restore the beige background color and disable default inset handling to prevent layout jumps.
+        containerColor = Color(0xFFECE5DD),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
+                modifier = Modifier.statusBarsPadding(),
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -323,7 +331,7 @@ fun ChatScreen() {
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
-                .background(if (selectedUris.isNotEmpty()) Color.Black else MaterialTheme.colorScheme.background)
+                .background(if (selectedUris.isNotEmpty()) Color.Black else Color(0xFFECE5DD))
         ) {
             val maxHeight = maxHeight
             val collapsedHeight = maxHeight / 3
@@ -373,21 +381,37 @@ fun ChatScreen() {
                     )
 
                     if (pickerUIState != PickerUIState.EXPANDED) {
-                        ChatInput(
-                            onMessageSent = { text ->
-                                messages.add(Message(text = text, isFromMe = true, type = MessageType.TEXT))
-                            },
-                            onTogglePicker = {
-                                if (isExtensionSupported) {
-                                    pickerUIState = if (pickerUIState == PickerUIState.CLOSED) {
-                                        PickerUIState.COLLAPSED
-                                    } else {
-                                        PickerUIState.CLOSED
+                        // Dynamically apply insets and background based on picker state.
+                        // When CLOSED, we need navigation padding to respect the system bar.
+                        // When COLLAPSED, the picker handles the bottom edge, so we omit it to avoid dead space.
+                        val inputModifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (pickerUIState == PickerUIState.CLOSED) {
+                                    Modifier
+                                        .background(Color(0xFFECE5DD))
+                                        .navigationBarsPadding()
+                                } else Modifier
+                            )
+                            .imePadding()
+
+                        Box(inputModifier) {
+                            ChatInput(
+                                onMessageSent = { text ->
+                                    messages.add(Message(text = text, isFromMe = true, type = MessageType.TEXT))
+                                },
+                                onTogglePicker = {
+                                    if (isExtensionSupported) {
+                                        pickerUIState = if (pickerUIState == PickerUIState.CLOSED) {
+                                            PickerUIState.COLLAPSED
+                                        } else {
+                                            PickerUIState.CLOSED
+                                        }
                                     }
-                                }
-                            },
-                            pickerUIState = pickerUIState
-                        )
+                                },
+                                pickerUIState = pickerUIState
+                            )
+                        }
                     }
 
                     // Spacer to push content up when picker is collapsed.
@@ -765,7 +789,8 @@ fun ChatInput(
     pickerUIState: PickerUIState
 ) {
     var text by remember { mutableStateOf("") }
-    Surface(tonalElevation = 4.dp, modifier = Modifier.imePadding()) {
+    // Modifier.imePadding() moved to caller's container to ensure the background fills correctly.
+    Surface(tonalElevation = 4.dp) {
         Crossfade(targetState = pickerUIState, label = "InputBarTransition") { state ->
             Row(
                 modifier = Modifier
