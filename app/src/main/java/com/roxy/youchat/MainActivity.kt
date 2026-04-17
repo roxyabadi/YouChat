@@ -218,9 +218,6 @@ fun ChatScreen() {
                 selectedUris.removeAll(uris)
                 
                 if (selectedUris.isEmpty()) {
-                    if (pickerUIState != PickerUIState.EXPANDED) {
-                        pickerUIState = PickerUIState.CLOSED
-                    }
                     currentPreviewIndex = 0
                 } else {
                     val newIndex = selectedUris.indexOf(currentUri)
