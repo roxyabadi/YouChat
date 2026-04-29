@@ -1,3 +1,4 @@
+@file:Suppress("UnstableApiUsage")
 pluginManagement {
     repositories {
         google {
@@ -22,5 +23,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Hello World"
+rootProject.name = "YouChat"
 include(":app")
