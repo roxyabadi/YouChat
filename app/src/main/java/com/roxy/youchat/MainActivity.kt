@@ -7,10 +7,12 @@ import android.os.Bundle
 import android.os.ext.SdkExtensions
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.photopicker.EmbeddedPhotoPickerFeatureInfo
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateDpAsState
@@ -166,35 +168,52 @@ fun ChatScreen() {
      */
     val isExtensionSupported = remember(isPreview) {
         if (isPreview) false else {
-            try {
-                SdkExtensions.getExtensionVersion(Build.VERSION_CODES.UPSIDE_DOWN_CAKE) >= 15
-            } catch (_: Exception) {
-                false
-            } catch (_: NoClassDefFoundError) {
+            if (Build.VERSION.SDK_INT >= 34) {
+                try {
+                    SdkExtensions.getExtensionVersion(Build.VERSION_CODES.UPSIDE_DOWN_CAKE) >= 15
+                } catch (_: Throwable) {
+                    false
+                }
+            } else {
                 false
             }
         }
     }
 
     // We use Any? to avoid EmbeddedPhotoPickerFeatureInfo appearing in synthetic method signatures
-    // which can cause NoClassDefFoundError in Android Studio Preview.
+    // which can cause NoClassDefFoundError on older Android versions during class verification.
     val featureInfo: Any? = remember(isExtensionSupported) {
-        if (isExtensionSupported) {
-            EmbeddedPhotoPickerFeatureInfo.Builder()
-                .setMaxSelectionLimit(10)
-                .setOrderedSelection(true)
-                .build()
+        if (isExtensionSupported && Build.VERSION.SDK_INT >= 34) {
+            PhotoPickerApi34.createFeatureInfo()
         } else null
     }
 
     val context = LocalContext.current
+
+    // Launcher for standard Photo Picker fallback (API 33 and below)
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia(10)
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            var lastAddedIndex = -1
+            uris.forEach { uri ->
+                if (!selectedUris.contains(uri)) {
+                    selectedUris.add(uri)
+                    lastAddedIndex = selectedUris.size - 1
+                }
+            }
+            if (lastAddedIndex != -1) {
+                currentPreviewIndex = lastAddedIndex
+            }
+        }
+    }
 
     /**
      * Initialize the Photo Picker State.
      * This handles the core logic of granting/revoking URI permissions as the user 
      * interacts with the embedded grid.
      */
-    val pickerState = if (!isPreview && isExtensionSupported) {
+    val pickerState: Any? = if (!isPreview && isExtensionSupported) {
         rememberEmbeddedPhotoPickerState(
             pickerResetKey,
             onUriPermissionGranted = { uris ->
@@ -235,8 +254,8 @@ fun ChatScreen() {
 
     // Synchronize the picker's internal 'expanded' state with our UI state.
     LaunchedEffect(pickerUIState) {
-        if (isExtensionSupported && pickerState != null) {
-            pickerState.setCurrentExpanded(pickerUIState == PickerUIState.EXPANDED)
+        if (isExtensionSupported && pickerState != null && Build.VERSION.SDK_INT >= 34) {
+            (pickerState as androidx.photopicker.compose.EmbeddedPhotoPickerState).setCurrentExpanded(pickerUIState == PickerUIState.EXPANDED)
         }
     }
 
@@ -367,7 +386,9 @@ fun ChatScreen() {
                             }
                         )
                     }
-                    Spacer(modifier = Modifier.height(collapsedHeight))
+                    if (isExtensionSupported || isPreview) {
+                        Spacer(modifier = Modifier.height(collapsedHeight))
+                    }
                 } else {
                     // Show standard chat list when not in preview mode.
                     MessageList(messages = messages, modifier = Modifier.weight(1f))
@@ -398,12 +419,17 @@ fun ChatScreen() {
                                     messages.add(Message(text = text, isFromMe = true, type = MessageType.TEXT))
                                 },
                                 onTogglePicker = {
-                                    if (isExtensionSupported) {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && isExtensionSupported) {
                                         pickerUIState = if (pickerUIState == PickerUIState.CLOSED) {
                                             PickerUIState.COLLAPSED
                                         } else {
                                             PickerUIState.CLOSED
                                         }
+                                    } else {
+                                        // Standard Fallback for older APIs (Android 13 and below)
+                                        launcher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                                        )
                                     }
                                 },
                                 pickerUIState = pickerUIState
@@ -502,9 +528,9 @@ fun ChatScreen() {
                         }
                         Box(modifier = Modifier.fillMaxSize()) {
                             if (isExtensionSupported && pickerState != null && featureInfo != null) {
-                                EmbeddedPhotoPicker(
+                                PhotoPickerView(
                                     state = pickerState,
-                                    embeddedPhotoPickerFeatureInfo = featureInfo as EmbeddedPhotoPickerFeatureInfo
+                                    featureInfo = featureInfo
                                 )
                             } else if (isPreview) {
                                 Box(
@@ -531,6 +557,38 @@ fun ChatScreen() {
 // ========================================================================================
 // HELPER COMPONENTS (Stateless UI)
 // ========================================================================================
+
+@SuppressLint("NewApi")
+@Composable
+fun PhotoPickerView(state: Any, featureInfo: Any) {
+    if (Build.VERSION.SDK_INT >= 34) {
+        PhotoPickerApi34.Render(state, featureInfo)
+    }
+}
+
+/**
+ * Helper object to isolate API 34+ class references.
+ * This prevents NoClassDefFoundError on older Android versions during class verification.
+ */
+object PhotoPickerApi34 {
+    @SuppressLint("NewApi")
+    fun createFeatureInfo(): Any {
+        return android.widget.photopicker.EmbeddedPhotoPickerFeatureInfo.Builder()
+            .setMaxSelectionLimit(10)
+            .setOrderedSelection(true)
+            .build()
+    }
+
+    @SuppressLint("NewApi")
+    @OptIn(ExperimentalPhotoPickerComposeApi::class)
+    @Composable
+    fun Render(state: Any, featureInfo: Any) {
+        EmbeddedPhotoPicker(
+            state = state as androidx.photopicker.compose.EmbeddedPhotoPickerState,
+            embeddedPhotoPickerFeatureInfo = featureInfo as android.widget.photopicker.EmbeddedPhotoPickerFeatureInfo
+        )
+    }
+}
 
 /**
  * A media previewer that supports images and videos with navigation controls.
