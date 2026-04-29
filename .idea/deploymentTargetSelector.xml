@@ -4,11 +4,11 @@
     <selectionStates>
       <SelectionState runConfigName="app">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-04-29T16:11:45.740922Z">
+        <DropdownSelection timestamp="2026-04-29T18:51:44.303731Z">
           <Target type="DEFAULT_BOOT">
-            <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=/Users/roxy/.android/avd/Pixel_10_Pro.avd" />
-            </handle>
+            <template>
+              <DeviceId pluginId="FirebaseDirectAccess" type="TEMPLATE" identifier="model_id=xcover7/34" />
+            </template>
           </Target>
         </DropdownSelection>
         <DialogSelection />
